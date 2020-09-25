@@ -1,0 +1,53 @@
+<bindings xmlns="http://java.sun.com/xml/ns/jaxb" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xjc="http://java.sun.com/xml/ns/jaxb/xjc"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://java.sun.com/xml/ns/jaxb http://xmlns.jcp.org/xml/ns/jaxb/bindingschema_2_0.xsd" version="2.1">
+
+  <bindings schemaLocation="../xsd/EDISchema-v4.xsd" node="/xs:schema">
+    <globalBindings choiceContentProperty="true"></globalBindings>
+
+    <bindings node="//xs:complexType[@name='controlType']">
+      <bindings node="//xs:attribute[@name='header']">
+        <property>
+          <baseType name="io.xlate.edischema.v4.SegmentType" />
+        </property>
+      </bindings>
+      <bindings node="//xs:attribute[@name='trailer']">
+        <property>
+          <baseType name="io.xlate.edischema.v4.SegmentType" />
+        </property>
+      </bindings>
+    </bindings>
+
+    <bindings node="//xs:complexType[@name='loopImpl']//xs:attribute[@name='type']">
+      <property>
+        <baseType name="io.xlate.edischema.v4.LoopStandard" />
+      </property>
+    </bindings>
+
+    <bindings node="(//xs:element[@name='schema']//xs:choice)[1]">
+      <property name="layout"></property>
+    </bindings>
+
+    <bindings node="//xs:element[@name='schema']//xs:choice[@id='typeChoice']">
+      <property name="types">
+        <baseType name="io.xlate.edischema.v4.BaseType" />
+      </property>
+    </bindings>
+
+    <bindings node="//xs:element[@name='transaction']//xs:choice">
+      <property name="items">
+        <baseType name="io.xlate.edischema.v4.BaseType" />
+      </property>
+    </bindings>
+
+    <bindings node="//xs:element[@name='implementation']//xs:choice">
+      <property name="items">
+        <baseType name="io.xlate.edischema.v4.BaseType" />
+      </property>
+    </bindings>
+
+    <bindings node="//xs:element[@name='segmentType']//xs:element[@name='sequence']//xs:choice">
+      <property name="elements"></property>
+    </bindings>
+  </bindings>
+</bindings>
