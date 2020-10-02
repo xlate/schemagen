@@ -54,7 +54,6 @@ import io.xlate.edischema.v4.Transaction;
 import io.xlate.edischema.v4.TransactionControlType;
 import io.xlate.edischema.v4.Value;
 
-@SuppressWarnings({ "java:S3457", "preview" })
 public class EdifactSchemaXmlGenerator extends XmlGenerator {
 
     static final Logger log = LoggerFactory.getLogger(EdifactSchemaXmlGenerator.class);
@@ -868,20 +867,30 @@ public class EdifactSchemaXmlGenerator extends XmlGenerator {
                     }
 
                     if (gap.isEmpty() && lne.length() > 0) {
-                        int loopId = loopIds.removeLast();
-                        lastDepth = depth - 1;
-                        log.info("{}END-LOOP." + loopId + " | " + lastDepth + " <-- SEGMENT LINES", "\t".repeat(lastDepth));
+                        int closeCount;
 
-                        refs = refStack.removeLast();
-                        String id = String.format("L%04d", loopId);
+                        if (lne.indexOf('-') > 0) {
+                            closeCount = lne.lastIndexOf('+') - lne.lastIndexOf('-');
+                        } else {
+                            closeCount = lne.lastIndexOf('┘') - lne.lastIndexOf('─');
+                        }
 
-                        LoopStandard l = new LoopStandard();
-                        l.setCode(id);
-                        setLoopOccurs(l, loopUses.removeLast(), loopMaxes.removeLast());
-                        l.getSequence().addAll(refs);
+                        while (closeCount-- > 0) {
+                            lastDepth = --depth;
+                            int loopId = loopIds.removeLast();
+                            log.info("{}END-LOOP." + loopId + " | " + lastDepth + " <-- SEGMENT LINES", "\t".repeat(lastDepth));
 
-                        refs = refStack.getLast();
-                        refs.add(l);
+                            refs = refStack.removeLast();
+                            String id = String.format("L%04d", loopId);
+
+                            LoopStandard l = new LoopStandard();
+                            l.setCode(id);
+                            setLoopOccurs(l, loopUses.removeLast(), loopMaxes.removeLast());
+                            l.getSequence().addAll(refs);
+
+                            refs = refStack.getLast();
+                            refs.add(l);
+                        }
                     } else {
                         lastDepth = depth;
                     }
