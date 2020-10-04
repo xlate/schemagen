@@ -1,6 +1,7 @@
 package io.xlate.edi.schematools;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
@@ -26,6 +26,7 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
 import javax.xml.bind.JAXBContext;
@@ -81,18 +82,47 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
     }
 
     private void process() throws IOException {
-        Properties config = new Properties();
-        try (InputStream stream = loader.getResourceAsStream("x12-versions.properties")) {
-            config.load(stream);
-        }
-        String[] versions = config.getProperty("versions").split(",");
+        String zipFile = System.getProperty("X12.botszip");
 
-        for (String version : versions) {
+        if (zipFile != null) {
             try {
-                addVersion(version);
+                addVersion(zipFile);
             } catch (Exception e) {
-                log.error("Exception processing version {}", version, e);
-                break;
+                log.error("Exception processing file {}", zipFile, e);
+            }
+        } else {
+            Properties config = new Properties();
+            try (InputStream stream = loader.getResourceAsStream("x12-versions.properties")) {
+                config.load(stream);
+            }
+            String[] versions = config.getProperty("versions").split(",");
+
+            for (String version : versions) {
+                try {
+                    addVersion(findZip(version), version);
+                } catch (Exception e) {
+                    log.error("Exception processing version {}", version, e);
+                    break;
+                }
+            }
+        }
+    }
+
+    private void addVersion(String zipFile) throws IOException {
+        ZipEntry records = null;
+        Pattern recordsPattern = Pattern.compile(".*records(\\d{6})\\.py$");
+
+        try (ZipFile file = new ZipFile(zipFile)) {
+            records = file.stream().filter(entry -> {
+                return recordsPattern.matcher(entry.getName()).matches();
+            }).findFirst().orElse(null);
+        }
+
+        if (records != null) {
+            Matcher recordsMatcher = recordsPattern.matcher(records.getName());
+            if (recordsMatcher.matches()) {
+                String version = recordsMatcher.group(1);
+                addVersion(new ZipInputStream(new FileInputStream(zipFile)), version);
             }
         }
     }
@@ -111,13 +141,11 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
     }
 
     @SuppressWarnings("preview")
-    private void addVersion(String version) throws IOException {
+    private void addVersion(ZipInputStream zip, String version) throws IOException {
         types.clear();
 
         Path output = Paths.get("./target/x12/" + version);
         Files.createDirectories(output);
-
-        final ZipInputStream zip = findZip(version);
 
         Map<String, PyList> structures = new TreeMap<>();
         PyDictionary recordDefs = null;
@@ -191,20 +219,7 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
                 throw e;
             }
 
-            messageSchema.getTypes().sort((r1, r2) -> {
-                if (r1 instanceof ElementType e1 && r2 instanceof ElementType e2) {
-                    return e1.getName().compareTo(e2.getName());
-                }
-                if (r1 instanceof CompositeType c1 && r2 instanceof CompositeType c2) {
-                    return c1.getName().compareTo(c2.getName());
-                }
-                if (r1 instanceof SegmentType s1 && r2 instanceof SegmentType s2) {
-                    return s1.getName().compareTo(s2.getName());
-                }
-
-                List<Class<?>> order = Arrays.asList(ElementType.class, CompositeType.class, SegmentType.class);
-                return Integer.compare(order.indexOf(r1.getClass()), order.indexOf(r2.getClass()));
-            });
+            sortTypes(messageSchema);
 
             Transaction tx = new Transaction();
             tx.setSequence(new ArrayList<>(references));
@@ -301,12 +316,12 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
             }
             schemaTypes.add(type);
 
-            if (type instanceof SegmentType segment) {
-                for (BaseType target : segment.getSequence()) {
-                    if (target instanceof ElementStandard element) {
-                        addIfAbsent(messageSchema, element.getType());
-                    } else if (target instanceof CompositeStandard composite) {
-                        addIfAbsent(messageSchema, composite.getType());
+            if (type instanceof SegmentType) {
+                for (BaseType target : ((SegmentType) type).getSequence()) {
+                    if (target instanceof ElementStandard) {
+                        addIfAbsent(messageSchema, ((ElementStandard) target).getType());
+                    } else if (target instanceof CompositeStandard) {
+                        addIfAbsent(messageSchema, ((CompositeStandard) target).getType());
                     }
                 }
             } else if (type instanceof CompositeType) {
@@ -345,7 +360,7 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
                 if (usage instanceof PyTuple) {
                     usageCode = ((PyTuple) usage).get(0).toString();
                     max = ((Integer) ((PyTuple) usage).get(1));
-                    log.info("Segment {} has repeating element {}", segmentId, id);
+                    log.debug("Segment {} has repeating element {}", segmentId, id);
                 } else {
                     usageCode = usage.toString();
                     max = 1;
@@ -430,7 +445,7 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
     @SuppressWarnings("preview")
     private ElementType buildSimpleElement(String id, PyList element) {
         PyObject third = element.pyget(2);
-        PyTuple range = (third instanceof PyTuple tuple) ? tuple : null;
+        PyTuple range = (third instanceof PyTuple) ? (PyTuple) third : null;
 
         int min = (Integer) (range != null ? range.get(0) : 1);
         int max = (Integer) (range != null ? range.get(1) : ((PyInteger) third).getValue());
@@ -488,7 +503,7 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
     }
 
     private static PyList getStructure(PythonInterpreter py, InputStream zip, ZipEntry entry)
-                                                                                              throws IOException {
+            throws IOException {
 
         Writer writer = new StringWriter((int) entry.getSize());
         PrintWriter printer = new PrintWriter(writer);
@@ -529,7 +544,7 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
     }
 
     private static PyDictionary getRecordDefs(PythonInterpreter py, InputStream zip, ZipEntry entry)
-                                                                                                     throws IOException {
+            throws IOException {
 
         StringWriter writer = new StringWriter((int) entry.getSize());
         PrintWriter printer = new PrintWriter(writer);

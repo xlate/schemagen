@@ -283,23 +283,6 @@ public class EdifactSchemaXmlGenerator extends XmlGenerator {
         }
     }
 
-    static void sortTypes(Schema s) {
-        s.getTypes().sort((r1, r2) -> {
-            if (r1 instanceof ElementType e1 && r2 instanceof ElementType e2) {
-                return e1.getName().compareTo(e2.getName());
-            }
-            if (r1 instanceof CompositeType c1 && r2 instanceof CompositeType c2) {
-                return c1.getName().compareTo(c2.getName());
-            }
-            if (r1 instanceof SegmentType s1 && r2 instanceof SegmentType s2) {
-                return s1.getName().compareTo(s2.getName());
-            }
-
-            List<Class<?>> order = Arrays.asList(ElementType.class, CompositeType.class, SegmentType.class);
-            return Integer.compare(order.indexOf(r1.getClass()), order.indexOf(r2.getClass()));
-        });
-    }
-
     static String resolve(String value, String revision) {
         return value.replaceAll("\\{revision\\}", revision);
     }
@@ -1076,18 +1059,18 @@ public class EdifactSchemaXmlGenerator extends XmlGenerator {
         if (!schemaTypes.contains(type)) {
             schemaTypes.add(type);
 
-            if (type instanceof SegmentType segmentT) {
-                for (BaseType target : segmentT.getSequence()) {
-                    if (target instanceof ElementStandard elementT) {
-                        addIfAbsent(messageSchema, elementT.getType());
-                    } else if (target instanceof CompositeStandard compositeT) {
-                        addIfAbsent(messageSchema, compositeT.getType());
+            if (type instanceof SegmentType) {
+                for (BaseType target : ((SegmentType) type).getSequence()) {
+                    if (target instanceof ElementStandard) {
+                        addIfAbsent(messageSchema, ((ElementStandard) target).getType());
+                    } else if (target instanceof CompositeStandard) {
+                        addIfAbsent(messageSchema, ((CompositeStandard) target).getType());
                     }
                 }
-            } else if (type instanceof CompositeType compositeT) {
-                for (BaseType target : compositeT.getSequence()) {
-                    if (target instanceof ElementStandard elementT) {
-                        addIfAbsent(messageSchema, elementT.getType());
+            } else if (type instanceof CompositeType) {
+                for (BaseType target : ((CompositeType) type).getSequence()) {
+                    if (target instanceof ElementStandard) {
+                        addIfAbsent(messageSchema, ((ElementStandard) target).getType());
                     }
                 }
             }
