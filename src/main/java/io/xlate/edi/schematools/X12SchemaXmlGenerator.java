@@ -451,43 +451,41 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
         int max = (Integer) (range != null ? range.get(1) : ((PyInteger) third).getValue());
         String typeCode = element.pyget(3).toString();
         final ElementBaseType base;
+        final BigInteger scale;
 
         switch (typeCode) {
         case "AN":
             base = ElementBaseType.STRING;
+            scale = null;
             break;
         case "B":
             base = ElementBaseType.BINARY;
+            scale = null;
             break;
         case "DT":
             base = ElementBaseType.DATE;
+            scale = null;
             break;
         case "N0":
-            base = ElementBaseType.NUMERIC;
-            break;
         case "N1":
-            base = ElementBaseType.NUMERIC;
-            break;
         case "N2":
-            base = ElementBaseType.NUMERIC;
-            break;
         case "N3":
-            base = ElementBaseType.NUMERIC;
-            break;
         case "N4":
-            base = ElementBaseType.NUMERIC;
-            break;
         case "N5":
-            base = ElementBaseType.NUMERIC;
-            break;
         case "N6":
+        case "N7":
+        case "N8":
+        case "N9":
             base = ElementBaseType.NUMERIC;
+            scale = BigInteger.valueOf(Long.valueOf(typeCode.substring(1)));
             break;
         case "R":
             base = ElementBaseType.DECIMAL;
+            scale = null;
             break;
         case "TM":
             base = ElementBaseType.TIME;
+            scale = null;
             break;
         default:
             throw new IllegalArgumentException("Unexpected type " + typeCode);
@@ -496,6 +494,7 @@ public class X12SchemaXmlGenerator extends XmlGenerator {
         ElementType type = new ElementType();
         type.setName(id);
         type.setBase(base);
+        type.setScale(scale);
         type.setMinLength(min != 1 ? BigInteger.valueOf(min) : null);
         type.setMaxLength(max != 1 ? BigInteger.valueOf(max) : null);
 
